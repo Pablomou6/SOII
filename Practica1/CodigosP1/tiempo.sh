@@ -25,12 +25,24 @@ else
     exit 1
 fi
 
-#Obtenemos la fecha actual. Utilizamos date con el formato %D para que nos devuelva la fecha en formato mm/dd/aaaa
-fecha_actual=$(date +%D)
-dia_actual=$(echo $fecha_actual | cut -d '/' -f 2)
-mes_actual=$(echo $fecha_actual | cut -d '/' -f 1)
+#Obtenemos la fecha actual. Utilizamos date con el formato +%d/%m/%Y para obtener la fecha en el formato deseado. El día, el mes y el año
+#el año debe ser Y (mayúscula) para que se muestre en formato de 4 dígitos.
+fecha_actual=$(date +%d/%m/%Y)
+dia_actual=$(echo $fecha_actual | cut -d '/' -f 1)
+mes_actual=$(echo $fecha_actual | cut -d '/' -f 2)
 anho_actual=$(echo $fecha_actual | cut -d '/' -f 3)
 #Recuperar la hora y minutos actuales
 hora_actual=$(date +%H)
 minuto_actual=$(date +%M)
+
+#Comprobamos si la fecha es anterior a la actual: (para usar el operador && debemos poner los corchetes de la condición en cada comparación y los pareńtesis)
+if [ $anho -gt $anho_actual ] || ([ $anho -eq $anho_actual ] && [ $mes -gt $mes_actual ]) || 
+   ([ $anho -eq $anho_actual ] && [ $mes -eq $mes_actual ] && [ $dia -gt $dia_actual ])
+then
+    echo "La fecha introducida $fecha es posterior a la actual. No es válida."
+    exit 1
+fi  
+
+
+
 
