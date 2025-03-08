@@ -3,8 +3,8 @@
 #Contamos las líneas previas a la ejecución
 lineas_antes=$(wc -l $HOME/passwd_copia.txt)
 
-#Con el comando 'sort', ordenamos el archivo alfabéticamente. El output, lo pasamos con un pipe para que sea un input de uniq, 
-sort $HOME/passwd_copia.txt | uniq > /tmp/passwd_orignal.txt
+#Con el comando 'sort', ordenamos el archivo alfabéticamente. Añadiéndole la flag -u, eliminamos las líneas duplicadas.
+sort -u $HOME/passwd_copia.txt > /tmp/passwd_orignal.txt
 
 #Contamos las líneas después de la ejecución
 lineas_despues=$(wc -l /tmp/passwd_orignal.txt)
