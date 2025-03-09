@@ -4,6 +4,9 @@
 #FORMATO: sala_XX_fecha@hora.res 
 #EJEMPLO: sala_20_2023-02-11@17:04.4K
 
+#Vamos a declarar una "constante" que usaremos luego
+DEFAULT_IFS=$' \t\n'
+
 #Como se pide que se muestre un mensaje de uso si no se introducen los parámetros correctos, definimos uno:
 uso="Uso: $0 <directorio_origen> <directorio_destino>
 Ejemplo: $0 /ruta/al/origen /ruta/al/destino"
@@ -86,7 +89,7 @@ for archivo in $(find "$(realpath "$1")" -type f -name "sala*"); do
     nombre=$(basename "$archivo")
     
     #Extraemos la fecha (que está en la tercera parte del nombre, separado por '_')
-    fecha=$(echo "$nombre" | cut -d'_' -f3 | cut -d'@' -f1)
+    fecha=$(echo "$nombre" | cut -d '_' -f 3 | cut -d '@' -f 1)
 
     #Comprobamos si la fecha tiene el formato correcto (YYYY-MM-DD).
     #La comprobación se compone de diferentes componentes:
@@ -118,6 +121,32 @@ for i in {20..50}; do
         done
     done
 done
+
+#El for, en las cadenas toma los espacios en blanco como divisores (cosa que pasa también arriba, al exttraer la fecha, pero no lo sabía y se añadió 
+#la comprobación de formato). Para evitar esto, modificaremos temporalmente el IFS (Internal Field Separator) para que 
+#no tome los espacios en blanco como divisores
+IFS=$'\n'
+
+#Ahora, volveremos a leer los nombres de los archivos en el directorio y los moveremos a la carpeta correspondiente
+for archivo in $(find "$(realpath "$1")" -type f -name "sala*"); do
+    #Extraemos el nombre del archivo, ya que ahora mismo tenemos la ruta absoluta
+    nombre=$(basename "$archivo")
+    num_sala=$(echo "$nombre" | cut -d '_' -f 2)
+    fecha=$(echo "$nombre" | cut -d '_' -f 3 | cut -d '@' -f 1)
+    hora=$(echo "$nombre" | cut -d '@' -f 2 | cut -d '.' -f 1)
+    #Extraemos la resolución, pero, como cut tiene de delimitador el punto, al tomar Full HD, solo toma Full ya que al detectar el espacio, se
+    #queda con "la primera palabra". Para eso, cuando le indicamos que queremos el campo 2, debemos poner el guión después de -f2 para así
+    #indicar que queremos un campo (-f), concretamente el 2 (-f2), pero hasta el final de la cadena (-f2-)
+    resolucion=$(echo "$nombre" | cut -d '.' -f2-)
+
+    #Una vez extraemos los parámetros necesarios para almacenarlo y modificarle el nombre, lo copiamos a su carpeta
+    cp "$(realpath "$1")/sala_${num_sala}_$fecha@$hora.$resolucion" "$ruta_abs/sala$num_sala/$fecha/$resolucion/charla_$hora"
+done
+
+#Restauramos el IFS a su valor original (En muchos foros dicen que 'unset IFS' es lo correcto, incluso el propio ChatGPT. Sin embargo, en la 
+#documentación no se menciona, como muchos otros usuarios lo dicen. Es por eso que, sabiendo que el valor por defecto del IFS es que separe cuando
+#hay espacios, tabuladores y saltos de línea, lo volvemos a poner en ese valor)
+IFS=$DEFAULT_IFS
 
 
 
