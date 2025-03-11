@@ -3,27 +3,27 @@
 
 
 #Vamos a declarar un mensaje de uso, en caso de que el usuario ejecute incorrectamente el script
-uso="Uso: $0 <opción> <archivo>
-    Ejemplo: $0 -c archivo.txt
-    Opciones:
-        -c: Muestra los diferentes códigos de respuesta sin repetición. 
-        -t: Muestra el número de dı́as para los que no hay ningún acceso al servidor.
-        GET: Cuenta el total de accesos con una petición tipo GET, con respuesta 200.
-        POST: Cuenta el total de accesos con una petición tipo POST, con respuesta 200.
-        -s: Resume el total de Datos enviados en KiB por cada mes.
-        -o: Ordena las lı́neas del fichero access.log en orde decreciente del número de bytes enviados."
+uso="Uso: $0 <opción> <archivo>\n
+    Ejemplo: $0 -c archivo.txt\n
+    Opciones:\n
+        -c: Muestra los diferentes códigos de respuesta sin repetición.\n 
+        -t: Muestra el número de dı́as para los que no hay ningún acceso al servidor.\n
+        GET: Cuenta el total de accesos con una petición tipo GET, con respuesta 200.\n
+        POST: Cuenta el total de accesos con una petición tipo POST, con respuesta 200.\n
+        -s: Resume el total de Datos enviados en KiB por cada mes.\n
+        -o: Ordena las lı́neas del fichero access.log en orde decreciente del número de bytes enviados.\n"
 
 #Vamos a comprobar primero que los argumentos son correctos
 if [ "$#" -ne 2 ]; then
     echo "Has introducido un número incorrecto de argumentos"
-    echo $uso
+    echo -e $uso
     exit 1
 fi
 
 #Comprobamos ahora que el archivo tenga permisos de lectura (-r) y que sea un archivo (-f)
 if ([ ! -r "$2" ] || [ ! -f "$2" ]); then
     echo "Se debe pasar un archivo regular y con permisos de lectura"
-    echo $uso
+    echo -e $uso
     exit 1
 fi
 
@@ -90,23 +90,58 @@ case "$1" in
         ;;
 
     GET)
-        # Add your code for option GET here
-        continue
+        #Hacemos un grep para quedarnos con las líneas que tienen GET y hacemos un cut, delimitado por espacios, para quedarnos con el noveno campo.
+        #Esto es posible a que conocemos el formato del archivo. Una vez tenemos todos los campos de respuesta de los GET, hacemos un grep para quedarnos
+        #con los que tienen respuesta 200 y, gracias a la flag -c, contamos cuántas veces aparece.
+        num_GET=$(grep "GET" "$2" | cut -d' ' -f9 | grep -c "200") 
+        echo "$(date '+%b %d %H:%M:%S') - Número de accesos GET con respuesta 200: $num_GET"
         ;;
 
     POST)
-        # Add your code for option POST here
-        continue
+        #Hacemos un grep para quedarnos con las líneas que tienen POST y hacemos un cut, delimitado por espacios, para quedarnos con el noveno campo.
+        #Esto es posible a que conocemos el formato del archivo. Una vez tenemos todos los campos de respuesta de los POST, hacemos un grep para quedarnos
+        #con los que tienen respuesta 200 y, gracias a la flag -c, contamos cuántas veces aparece.
+        num_POST=$(grep "POST" "$2" | cut -d' ' -f9 | grep -c "200") 
+        echo "$(date '+%b %d %H:%M:%S') - Número de accesos POST con respuesta 200: $num_POST"
+        #Ambos casos se podrían hacer con wc -l, pero como no se asegura tener un \n en la última línea, se podría omitir el último resultado.
         ;;
 
     -s)
-        # Add your code for option -s here
-        continue
+        #En el vector ponemos los meses que hay en el log, pero se podría generalizar
+        meses=("Dec" "Jan" "Feb")
+
+        #Hacemos un for para recorrer el array de los meses
+        for mes in "${meses[@]}"; do
+
+            total_datos=0 
+            contador_accesos=0
+
+            #Ahora, hacemos un while read -r (con la flag, no interpreta los \ como escape) el cual recibe como process substitution las líneas
+            #que tienen el mes deseado. este mes se consigue haciendo un grep del mes para obtener las líneas. Después, se hace un cut, delimitado por 
+            #espacios, y se coge el campo número 10, que será el último (posible debido a conocer el formato). Por último, se hace un grep que con las flags
+            #se posibilita las regex extendidas y, con -o, se consigue que se impriman las líneas que coinciden con la regex. La que usamos, 
+            #'[0-9]+', indica que hay uno o más (+) números del cero al nueve [0-9]
+            while read -r dato; do
+                #Una vez recuperamos el número de Bytes, comprobamos qu sea un número. Se indica el inicio de la expresión con ^, donde puede
+                #haber uno o más dígitos del 0 al 9. La expresión termina con el $.
+                if [[ "$dato" =~ ^[0-9]+$ ]]; then
+                    ((total_datos += dato))
+                    ((contador_accesos++))
+                fi
+            done < <(grep "$mes" "$2" | cut -d' ' -f10 | grep -oE '[0-9]+')
+
+            #Convertimos a KiB dividiendo entre 1024
+            total_datos_kib=$((total_datos / 1024))
+            echo "$total_datos_kib KiB enviados en $mes en $contador_accesos accesos."
+        done
         ;;
 
     -o)
-        # Add your code for option -o here
-        continue
+        #Hacemos cat del archivo para que se muestre, pero lo pasamos mediante un pipe a un sort. Este sort tiene indicado que el espacio es separador
+        #(-t ' ') y que el campo que se toma como referencia para ordenar, es el 10 (-k10). Por último, se ordena de forma numérica y de forma decreciente
+        #(-nr) y se redirige la salida a un archivo. (Esta forma mezcla los 0's con los -'s. Se puede sustituír con un sed -E 's/([0-9]{3}) -$/\1 0/', pero
+        #es muy lento. Otra opción es usar perl, pero se necesita tenerlo instalado) Como 0 y - se pueden entender como el mismo valor, se deja así.
+        cat "$2" | sort -t' ' -k10 -nr > $HOME/access_ord.log   
         ;;
 
     *)

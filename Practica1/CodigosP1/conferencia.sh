@@ -8,13 +8,13 @@
 DEFAULT_IFS=$' \t\n'
 
 #Como se pide que se muestre un mensaje de uso si no se introducen los parámetros correctos, definimos uno:
-uso="Uso: $0 <directorio_origen> <directorio_destino>
+uso="Uso: $0 <directorio_origen> <directorio_destino>\n
 Ejemplo: $0 /ruta/al/origen /ruta/al/destino"
 
 #Comprobamos que el número de parámetros sea 2. $# nos devuelve el número de parámetros (sin contar el nombre del script)
 if [ "$#" -ne 2 ]; then
     echo "Se requieren exactamente 2 parámetros."
-    echo "$uso"
+    echo -e "$uso"
     exit 1
 fi
 
@@ -22,21 +22,21 @@ fi
 #Adicionalmente, obtenemos los valores de los parámetros entre comillas, asegurándonos de tratar cada uno como una sola unidad
 if ([ ! -d "$1" ] || [ ! -d "$2" ]); then
     echo "Uno de los parámetros no es un directorio."
-    echo "$uso"
+    echo -e "$uso"
     exit 1
 fi
 
 #De forma similar a lo anterior, comprobamos que tenga permisos de lectura.
 if [ ! -r "$1" ]; then
     echo "El directorio de origen no tiene permisos de lectura."
-    echo "$uso"
+    echo -e "$uso"
     exit 1
 fi
 
 #Comprobamos que el directorio de destino tenga permisos de escritura.
 if [ ! -w "$2" ]; then 
     echo "El directorio de destino no tiene permisos de escritura."
-    echo "$uso"
+    echo -e "$uso"
     exit 1
 fi
 
