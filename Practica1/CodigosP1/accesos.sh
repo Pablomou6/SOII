@@ -141,6 +141,7 @@ case "$1" in
         #(-t ' ') y que el campo que se toma como referencia para ordenar, es el 10 (-k10). Por último, se ordena de forma numérica y de forma decreciente
         #(-nr) y se redirige la salida a un archivo. (Esta forma mezcla los 0's con los -'s. Se puede sustituír con un sed -E 's/([0-9]{3}) -$/\1 0/', pero
         #es muy lento. Otra opción es usar perl, pero se necesita tenerlo instalado) Como 0 y - se pueden entender como el mismo valor, se deja así.
+        #NOTA: -k10 ordena tomando en cuenta desde el campo 10 hasta el final, se podría limitar, pero no es necesario.
         cat "$2" | sort -t' ' -k10 -nr > $HOME/access_ord.log   
         ;;
 
