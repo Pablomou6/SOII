@@ -141,31 +141,41 @@ fi
 #Debemos tener en cuenta también la hora del día actual, para el cálculo de los minutos en el propio día
 minutos_hoy=$(( $(date +%H) * 60 + $(date +%M) ))
 
-#Ahora, vamos a convertir los días en minutos, días y años
-#Convertimos días en minutos totales
+#Convertimos los días totales en minutos totales
 minutos_totales=$((dias_totales * 24 * 60 + minutos_hoy))
 
-#Hacemos el módulo de los minutos para obtener los minutos que pasaron en el último día (máximo 1440)
+#Obtenemos los minutos que pasaron en el último día
 minutos_diferencia=$((minutos_totales % 1440))
-if [ "$minutos_diferencia" -gt 1440 ]; then
-    minutos_diferencia=1440
-fi
-#Debemos restar los minutos al total
+
+#Restamos los minutos del último día para calcular los días restantes
 minutos_totales=$((minutos_totales - minutos_diferencia))
 
-#Calculamos los sías dentro del último año (máximo 365)
-dias_diferencia=$((dias_totales % 365))
-if [ "$dias_diferencia" -gt 365 ]; then
-    dias_diferencia=365
-fi
+#Calculamos los días dentro del último año
+dias_diferencia=$(((minutos_totales / 1440) % 365))
 
-#Años totales (máximo 2025)
-anhos_diferencia=$((dias_totales / 365))
-if [ "$anhos_diferencia" -gt 2025 ]; then
-    anhos_diferencia=2025
-fi
+#Calculamos los años totales, considerando años bisiestos
+anhos_diferencia=0
+dias_restantes=$((minutos_totales / 1440))
 
-#Los if's se aseguran de que no se sobrepase el máximo de años, días y minutos, ya que el enunciado lo limita
+#CORRECCIÓN DE LA ENTREGA: Antes no se contabilizaban los años bisiestos, por lo que en fechas muy distantes, iba a haber mucha diferencia
+#Mientras los días restantes son mayores o iguales a 365, comprobamos si el año es bisiesto o no
+while [ "$dias_restantes" -ge 365 ]; do
+    if esBisiesto $((anho + anhos_diferencia)); then
+        #Si es bisiesto, restamos 366 días, si no, restamos 365 días
+        if [ "$dias_restantes" -ge 366 ]; then
+            dias_restantes=$((dias_restantes - 366))
+            anhos_diferencia=$((anhos_diferencia + 1))
+        else
+            break
+        fi
+    else
+        dias_restantes=$((dias_restantes - 365))
+        anhos_diferencia=$((anhos_diferencia + 1))
+    fi
+done
+
+#Actualizamos los días restantes después de calcular los años
+dias_diferencia=$dias_restantes
 
 echo "Desde la fecha $fecha, hasta la fecha actual; $(date +%d/%m/%Y)"
 echo "Pasaron:"
@@ -174,7 +184,6 @@ echo "  $dias_diferencia días."
 echo "  $minutos_diferencia minutos."
 echo "Este cálculo respeta el cambio de calendario al Gregoriano, por lo que cuenta 10 días menos si el la fecha introducida 
 es anterior o igual al 4/10/1582. Se puede verificar con una página web, en la que tienen 10 días más (no cuentan el cambio)."
-
 
 
 
