@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/mman.h>
 #include "mimir.h"
 
@@ -25,7 +26,7 @@ void consume_item(char *arrayLocal, char elemento){
 int main(int argc, char** argv){
 
     //array local donde se almacenarán los caracteres retirados del buffer
-    char* arrayLocal[] = (char *)malloc(100 * sizeof(char));
+    char* arrayLocal = malloc(100 * sizeof(char));
     char elemento; 
 
     //se abre el archivo compartido

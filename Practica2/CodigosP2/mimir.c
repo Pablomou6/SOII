@@ -8,6 +8,7 @@ tuirlas por espera activa.
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include "mimir.h"
 
 //wake up debe ser de forma que el 
 //productor pueda despertar al consumidor y viceversa

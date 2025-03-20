@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/mman.h>
 #include "mimir.h"
 
@@ -33,7 +34,7 @@ void insert_item(char elemento, void* arrayCompartido){
 int main(int argc, char *arg[]) {
 
     //arraylocal de char para almacenar los elementos generados
-    char* arrayLocal[] = (char *)malloc(100 * sizeof(char));
+    char* arrayLocal = (char *)malloc(100 * sizeof(char));
     //caracter que se va a generar
     char elemento;
 
@@ -59,13 +60,26 @@ int main(int argc, char *arg[]) {
     for(;;) {   //bucle infinito
 
         produce_item(&elemento, arrayLocal);        //generamos un elemento
-        if(nElementosBuffer == N) sleep_();         //si el buffer está lleno, dormimos el proceso
-         
-        nElementosBuffer = nElementosBuffer + 1;    //incrementamos el número de elementos en el buffer
+        printf("(prod) elemento generado: %c\n", elemento);
+        
+        if(nElementosBuffer == N){
+            printf("(prod) Buffer lleno, voy mimir\n");
+            sleep_();         //si el buffer está lleno, dormimos el proceso
+        }
+           
+        insert_item(elemento, map); 
+        //incrementamos el número de elementos en el buffer
+        nElementosBuffer = nElementosBuffer + 1;                 //insertamos el elemento en el buffer
+        printf("(prod) elemento insertado en el buffer\n");
+        
+        if(nElementosBuffer == 1){
+            printf("\n(prod) Buffer vacío, despertamos al consumidor\n");
+            wakeup_();        //si el buffer estaba vacío, despertamos al consumidor 
+        }
 
-        insert_item(elemento, map);                 //insertamos el elemento en el buffer
-        if(nElementosBuffer == 1) wakeup_();        //si el buffer estaba vacío, despertamos al consumidor
     }
+
+    
 
     return 0;
 }
