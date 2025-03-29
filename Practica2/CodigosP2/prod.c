@@ -1,119 +1,158 @@
-/*
-    Proyectamos el archivo en memoria (lectura y escritura, compartida)
-    void *mapped = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <string.h>
 #include <unistd.h>
+#include <time.h>
+#include <fcntl.h>
 #include <sys/mman.h>
-#include "mimir.h"
+#include <signal.h>
+#include <stdbool.h>
 
-#define N 8     //tamaño del buffer
+#define N 8 
 
-int nElementosBuffer = 0;   
+bool boolean = true;
 
-void produce_item(char* elemento, char* arrayLocal){ 
-    //Generamos una letra aleatoriamente
-    *elemento = 'A' + rand() % 26;
-    //Introducimos la letra en el array local de char's
-    arrayLocal[strlen(arrayLocal)] = *elemento;
+//Compartiremos entre los procesos la estructura sharedData
+/*
+    Esta estructura contiene varios datos:
+    - array: Es el buffer compartido entre los procesos. Es un array de char's de tamaño N.
+    - numElementos: Es el número de elementos que hay en el buffer.
+    - pidProd: Es el PID del productor.
+    - pidCons: Es el PID del consumidor.
+*/
+typedef struct {
+    char array[N];
+    int numElementos;
+    int pidProd, pidCons;
+} sharedData;
+sharedData* info;
+
+//Esta función genera una letra aleatoria de la A a la Z
+char produce_item() {
+    return 'A' + (rand() % 26);
 }
 
-void insert_item(char elemento, void* arrayCompartido){
-    //convertimos el arrayCopartido al tipo adecuado
-    char* buffer = (char*)arrayCompartido;
-    //añadir caracter generado al buffer compartido
-    buffer[nElementosBuffer] = elemento;
+//Función que introduce el elemento en el array compartido
+void insert_item(sharedData* info, char item) {
+    //Introducimos el item en la posición superior del buffer. Dado que el número de elementos puede ser desde 0 a 8, pero solo entramos en la
+    //función cuando el número de elementos es menor que 8, no es necesario comprobar si el buffer está lleno y se introduceen la posición numElementos.
+    info->array[info->numElementos] = item;
 }
 
+void signal_handler(int senhal) {
+    //No tiene que tener nada
+}
 
+void sigint_handler(int senhal) {
+    if(senhal == SIGINT) {
+        printf("Recibida señal SIGINT. Se cambia el valor del bool.\n");
+        boolean = false;
 
-int main(int argc, char *arg[]) {
+        //Enviar señal SIGUSR2 al consumidor para que termine
+        kill(info->pidCons, SIGUSR2);
+    }
+}
 
-    //arraylocal de char para almacenar los elementos generados
-    char* arrayLocal = (char *)malloc(100 * sizeof(char));
-    //caracter que se va a generar
-    char elemento;
+int main(int argc, char* argv[]) {
+    srand(time(NULL));
 
-    //abrimos el archivo para lectura y escritura usando open
-    int fd = open("archivoCompartido.txt", O_RDWR); 
+    if(argc != 2) {
+        printf("Debe introducir un int para el número de segundos a dormir\n");
+        return EXIT_FAILURE;
+    }
+
+    int fd = 0, indexLocal = 0;
+    char arrayLocal[1000];
+    char item;
+    int segundos = atoi(argv[1]);
+
+    //Abrimos el archivo compartido. En caso de no existir, lo crea.
+    fd = open("archivoCompartido.txt", O_RDWR | O_CREAT, 0666);
     if(fd == -1) {
         perror("Error al abrir el archivo");
         exit(EXIT_FAILURE);
     }
-
-    //Como vamos a mapear el archivo, necesitamos saber su tamaño, por lo que lo truncamos
-    if(ftruncate(fd, N*sizeof(char)) == -1) {
-        //ftruncate recibe el descriptor de archivo y el tamaño al que queremos truncar
+    //Truncamos el archivo al tamaño de la estructura
+    if(ftruncate(fd, sizeof(sharedData)) == -1) {
         perror("Error al truncar el archivo");
         close(fd);
         exit(EXIT_FAILURE);
     }
+    //Mapeamos el archivo, pero casteándolo a la estructura sharedData
+    /*
+        Lo que estamos haciendo es crear un espacio de memoria compartida entre los procesos al mapear el archivo. 
+        Sin embargo, al hacer un cast a la estructura, lo que hace realmente es interpretar a la estructura como si fuese el archivo,
+        quedando así l contenido de la estructura en el archvio.
+    */
+    info = (sharedData*)mmap(NULL, sizeof(sharedData), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if(info == MAP_FAILED) {
+        perror("Error al mapear el archivo");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    //Cerramos el archivo
+    close(fd);
 
-    //proyectamos el archivo en memoria y almacenamos la dirección de memoria devuelta
-    //map es puntero a void con el que accederemos a la memoria proyectada
-    void* map = mmap(NULL, N*sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    //Una vez tenemos la memoria compartida creada y ambos procesos accedieron a ella, debemos conocer los PIDs de ambos procesos.
+    info->pidProd = getpid();
+    printf("PID del productor almacenado: %d\n", info->pidProd);
 
-    for(;;) {   //bucle infinito
+    info->numElementos = 0;
+    info->pidCons = 0;
 
-        produce_item(&elemento, arrayLocal);        //generamos un elemento
-        printf("(prod) elemento generado: %c\n", elemento);
-        
-        if(nElementosBuffer == N){
-            printf("(prod) Buffer lleno, voy mimir\n");
-            sleep_();         //si el buffer está lleno, dormimos el proceso
+    //Configuramos el manejador de señales
+    signal(SIGUSR1, signal_handler);
+    signal(SIGINT, sigint_handler);
+
+    while(boolean) {
+        //Generamos un item aleatorio
+        item = produce_item();
+
+        //Comprobamos si el tope es 8, por lo que el buffer está lleno (0 a 7) y hacemos una espera activa
+        while(info->numElementos == N) {
+            
         }
-           
-        insert_item(elemento, map); 
-        //incrementamos el número de elementos en el buffer
-        nElementosBuffer = nElementosBuffer + 1;                 //insertamos el elemento en el buffer
-        printf("(prod) elemento insertado en el buffer\n");
-        
-        if(nElementosBuffer == 1){
-            printf("\n(prod) Buffer vacío, despertamos al consumidor\n");
-            wakeup_();        //si el buffer estaba vacío, despertamos al consumidor 
-        }
 
+        //Introducimos un sleep para forzar la carrera crítica (Forzamos la carrera crítica porque se aumenta la probabilidad de que
+        //el consumidor lea el buffer antes de que el productor lo escriba)
+        sleep(segundos);
+
+        //Insertamos el item en el buffer
+        insert_item(info, item);
+
+        //Añadimos un sleep para forzar la carrera crítica (Se debe a que, si tarda en actualizar el tope, el consumidor leerá 
+        //el buffer antes de que el productor actualice la posición libre)
+        sleep(segundos);
+
+        //Aumentamos la posición tope
+        info->numElementos++;
+        printf("Productor: Letra %c, Contador de buffer (ahora): %d\n", item, info->numElementos);
+
+        //Insertamos el item en el buffer local
+        arrayLocal[indexLocal] = item;
+        indexLocal++;
+
+        //Ahora, si el buffer está vacío/tiene espacio, se avisa al consumidor
+        if(info->numElementos == 1) {
+            if(info->pidCons != 0) {
+                //Enviar señal al consumidor para que deje de hacer espera activa
+                kill(info->pidCons, SIGUSR1);
+            }
+        }
     }
 
-    
+    //Una vez se recibe la señal SIGINT, se imprime el buffer local
+    printf("Se han producido las letras (buffer local): ");
+    for(int i = 0; i < indexLocal; i++) {
+        printf("%c ", arrayLocal[i]);
+    }
+    printf("\n");
+    printf("El productor ha terminado.\n");
+
+    //Desmapeamos el archivo
+    if(munmap(info, sizeof(sharedData)) == -1) {
+        perror("Error al desmapear el archivo");
+        exit(EXIT_FAILURE);
+    }
 
     return 0;
 }
-/*
-void prod(){
-    int item;
-    while(1){
-        item=produce_item();
-        if(count==N) sleep();
-        insert_item(item);
-        count=count+1;
-        if(count==1) wakeup(cons);
-    }
-}
-*/
-
-/*
-Programa el productor y el consumidor para comprobar que se pueden presentar carreras crı́ticas.
-Puedes aumentar la probabilidad de que ocurran haciendo que la región crı́tica dure más
-tiempo, por ejemplo, con llamadas a la función sleep() oportunamente situadas. Añade al código
-salidas que muestren como evolucionan el productor y el consumidor, y usa comentarios para indicar
-donde deben situarse los sleep() para que se produzcan carreras crı́ticas con alta probabilidad.
-Los códigos del productor y el consumidor deben ser dos programas diferentes llamados prod.c y
-cons.c que se ejecuten en terminales distintos. Ten en cuenta lo siguiente:
-◦ Dado que el consumidor y el productor serán dos procesos diferentes (no hilos), es necesario
-definir zonas de memoria donde almacenar variables compartidas usando, por ejemplo, mmap().
-◦ El buffer debe ser de tipo char, y funcionar como una cola LIFO (Last In First Out).
-◦ El tamaño del buffer definido como una consttante de los códigos, debe ser N=8.
-◦ Las funciones sleep() y wakeup() las puedes implementar con señales o con semáforos o susti-
-tuirlas por espera activa.
-◦ La función produce item() debe generar una letra mayúscula aleatoria. Deberá, además, ir
-añadiendola a un string local que contendrá finalmente todos esos caracteres.
-◦ La función insert item() debe colocar el carácter generado en el buffer.
-◦ La función remove item() debe retirar del buffer el carácter que corresponda.
-◦ La función consume item() debe añadir el carácter retirado del buffer a un string local donde
-los irá almacenando a medida que se leen.
-*/
