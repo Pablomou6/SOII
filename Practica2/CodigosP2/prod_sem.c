@@ -10,25 +10,26 @@
 #define N 8             // Tamaño del buffer
 #define ITERACIONES 60  // Número de iteraciones
 
+typedef struct {
+    char array[N];       // Buffer compartido
+    int numElementos;    // Número de elementos en el buffer
+} sharedData;
+
+// Generar un elemento aleatorio
 void produce_item(char* elemento, char* arrayLocal) { 
-    // Generamos una letra aleatoriamente
-    *elemento = 'A' + rand() % 26;
-    // Introducimos la letra en el array local de char's
-    arrayLocal[strlen(arrayLocal)] = *elemento;
+    *elemento = 'A' + rand() % 26; // Generar una letra aleatoria
+    arrayLocal[strlen(arrayLocal)] = *elemento; // Guardar en el array local
 }
 
-void insert_item(char elemento, void* arrayCompartido, int* nElementosBuffer) {
-    // Convertimos el arrayCompartido al tipo adecuado
-    char* buffer = (char*)arrayCompartido;
-    // Añadir caracter generado al buffer compartido
-    buffer[*nElementosBuffer] = elemento;
-    (*nElementosBuffer)++;
+// Insertar un elemento en el buffer compartido
+void insert_item(sharedData* info, char elemento) {
+    info->array[info->numElementos] = elemento; // Insertar en el buffer
+    info->numElementos++; // Incrementar el contador
 }
 
 int main(int argc, char *argv[]) {
-    // Array local de char para almacenar los elementos generados
+    // Array local para almacenar los elementos generados
     char* arrayLocal = (char *)malloc(100 * sizeof(char));
-    // Caracter que se va a generar
     char elemento;
 
     // Semáforos
@@ -56,25 +57,24 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // Truncar el archivo al tamaño del buffer
-    if (ftruncate(fd, N * sizeof(char) + sizeof(int)) == -1) {
+    // Truncar el archivo al tamaño de la estructura compartida
+    if (ftruncate(fd, sizeof(sharedData)) == -1) {
         perror("Error al truncar el archivo");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
     // Mapear el archivo en memoria compartida
-    void* map = mmap(NULL, N * sizeof(char) + sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* map = mmap(NULL, sizeof(sharedData), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         perror("Error al mapear el archivo");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
-    // Inicializar nElementosBuffer en la memoria compartida
-    int* nElementosBuffer = (int*)map;
-    *nElementosBuffer = 0;
-    char* buffer = (char*)(nElementosBuffer + 1);
+    // Asignar la memoria compartida a la estructura
+    sharedData* info = (sharedData*)map;
+    info->numElementos = 0; // Inicializar el contador de elementos
 
     // Productor: iterar 60 veces
     srand(time(NULL));
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
         sem_wait(mutex);
 
         // Insertar el elemento en el buffer
-        insert_item(elemento, buffer, nElementosBuffer);
+        insert_item(info, elemento);
         printf("(prod) Elemento insertado en el buffer\n");
 
         sem_post(mutex);
@@ -98,8 +98,16 @@ int main(int argc, char *argv[]) {
         sleep(rand() % 4);
     }
 
+    // Imprimir el buffer local
+    printf("Se han producido las letras (buffer local): ");
+    for (int i = 0; i < strlen(arrayLocal); i++) {
+        printf("%c ", arrayLocal[i]);
+    }
+    printf("\n");
+    printf("El productor ha terminado.\n");
+
     // Liberar recursos
-    munmap(map, N * sizeof(char) + sizeof(int));
+    munmap(map, sizeof(sharedData));
     close(fd);
     free(arrayLocal);
 

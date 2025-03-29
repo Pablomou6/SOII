@@ -10,19 +10,25 @@
 #define N 8
 #define ITERACIONES 60
 
-void remove_item(void *arrayCompartido, char *elemento, int* nElementosBuffer) {
-    char* buffer = (char*)arrayCompartido;
-    if (*nElementosBuffer > 0) {
-        *elemento = buffer[*nElementosBuffer - 1];
-        (*nElementosBuffer)--;
+typedef struct {
+    char array[N];       // Buffer compartido
+    int numElementos;    // Número de elementos en el buffer
+} sharedData;
+
+// Retirar un elemento del buffer compartido
+char remove_item(sharedData* info) {
+    if (info->numElementos > 0) {
+        char elemento = info->array[info->numElementos - 1];
+        info->numElementos--; // Decrementar el contador
+        return elemento;
     } else {
         fprintf(stderr, "Error: Intento de retirar un elemento de un buffer vacío.\n");
         exit(EXIT_FAILURE);
     }
 }
 
-void consume_item(char *arrayLocal, char elemento, int* indiceLibre) {
-    // Añadir el caracter retirado del buffer a un string local
+// Consumir un elemento y almacenarlo en el array local
+void consume_item(char* arrayLocal, char elemento, int* indiceLibre) {
     arrayLocal[*indiceLibre] = elemento;
     (*indiceLibre)++;
 }
@@ -54,16 +60,16 @@ int main(int argc, char** argv) {
     }
 
     // Mapear archivo a memoria compartida
-    void* map = mmap(NULL, N * sizeof(char) + sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* map = mmap(NULL, sizeof(sharedData), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         perror("Error al mapear el archivo");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
-    // Obtener punteros a la memoria compartida
-    int* nElementosBuffer = (int*)map;
-    char* buffer = (char*)(nElementosBuffer + 1);
+    // Asignar la memoria compartida a la estructura
+    sharedData* info = (sharedData*)map;
+
 
     // Consumidor: iterar 60 veces
     srand(time(NULL));
@@ -73,7 +79,7 @@ int main(int argc, char** argv) {
         sem_wait(mutex);
 
         // Retirar elemento del buffer
-        remove_item(buffer, &elemento, nElementosBuffer);
+        elemento = remove_item(info);
 
         sem_post(mutex);
         sem_post(vacias);
@@ -86,8 +92,16 @@ int main(int argc, char** argv) {
         sleep(rand() % 4);
     }
 
+    // Imprimir el buffer local
+    printf("Se han consumido las letras (buffer local): ");
+    for (int i = 0; i < indiceLibre; i++) {
+        printf("%c ", arrayLocal[i]);
+    }
+    printf("\n");
+    printf("El consumidor ha terminado.\n");
+
     // Liberar recursos
-    munmap(map, N * sizeof(char) + sizeof(int));
+    munmap(map, sizeof(sharedData));
     close(fd);
     free(arrayLocal);
 
