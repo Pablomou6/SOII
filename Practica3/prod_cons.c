@@ -66,7 +66,7 @@ void* consumidor(void* i){
         // Bloqueamos el mutex para acceder a las variables compartidas
         pthread_mutex_lock(&mutex);
 
-        // Verificamos si no hay elementos en el buffer y si no hemos terminado. En esto caso, espera el consumidor
+        // Si no hay ningún elemento en el buffer y no se han leído todos los elementos, espera usando la variable de condición
         while(numElementos == 0 && !(nAsteriscos == P)) {
             pthread_cond_wait(&condc, &mutex);
         }
@@ -168,6 +168,8 @@ void* productor(void* i){
             pthread_mutex_unlock(&mutex);
 
             printf("(Prod %d) Inserta el elemento %c\n", id, elemento);
+
+            // Tiempo de espera aleatorio entre 0 y T-1
             sleep(rand() % T);
         }
     }
@@ -215,6 +217,7 @@ int main(int argc, char *argv[]){
     // Creación del mutex y variables de condición
     pthread_mutex_init(&mutex, 0);
     pthread_mutex_init(&scanner, 0);
+    pthread_mutex_init(&nAsterisco, 0);
     pthread_mutex_init(&nAsterisco, 0);
     
     // Creación de la barrera
