@@ -60,6 +60,7 @@ void* consumidor(void* i){
     while(1){
         pthread_mutex_lock(&mutex);
 
+        // Si no hay ningún elemento en el buffer y no se han leído todos los elementos, espera usando la variable de condición
         while(numElementos == 0 && !finalizado) {
             pthread_cond_wait(&condc, &mutex);
         }
@@ -89,6 +90,9 @@ void* consumidor(void* i){
             }
             pthread_mutex_unlock(&nAsterisco);
         }
+
+        // Tiempo de espera aleatorio entre 0 y T-1
+        sleep(rand() % T);
     }
 
     fclose(salida);
@@ -133,16 +137,21 @@ void* productor(void* i){
         if(esAlfanumerico(elemento)) {
             pthread_mutex_lock(&mutex);
 
-            while(numElementos != 0) {
+            // Si todas las posiciones del buffer están llenas, espera
+            while(numElementos == N) {
                 pthread_cond_wait(&condp, &mutex);
             }
 
             insertarElemento(elemento, T);
             
+            // Informa a un consumidor de que ya hay un elemento como mínimo en el buffer
             pthread_cond_signal(&condc);
 
             pthread_mutex_unlock(&mutex);
             printf("(Prod %d) Inserta el elemento %c\n", id, elemento);
+
+            // Tiempo de espera aleatorio entre 0 y T-1
+            sleep(rand() % T);
         }
     }
 
@@ -152,7 +161,7 @@ void* productor(void* i){
         pthread_cond_wait(&condp, &mutex);
     }
 
-    insertarElemento('*', T);
+    insertarElemento('*', T);   // Inserta en el buffer un * para señalizar el fin del archivo
     
     pthread_cond_signal(&condc);
 
@@ -185,6 +194,7 @@ int main(int argc, char *argv[]){
     // Creación del mutex y variables de condición
     pthread_mutex_init(&mutex, 0);
     pthread_mutex_init(&scanner, 0);
+    pthread_mutex_init(&nAsterisco, 0);
     
     // Creación de la barrera
     if(pthread_barrier_init(&barrier, NULL, P+C) != 0){
@@ -214,6 +224,7 @@ int main(int argc, char *argv[]){
         printf("Termina el consumidor %d\n", i);
     }
 
+    // Liberar recursos
     pthread_barrier_destroy(&barrier);
     pthread_mutex_destroy(&mutex);
     pthread_mutex_destroy(&scanner);
