@@ -11,7 +11,6 @@ char *buffer;
 int inicio = 0, final = 0, numElementos = 0; // LLena si ambas variables coinciden (final apunta al último elemento)
 int nAsteriscos = 0;
 int P, C, N; 
-int finalizado = 0;
 
 pthread_mutex_t mutex, scanner, nAsterisco;
 pthread_cond_t condc, condp;
@@ -61,12 +60,12 @@ void* consumidor(void* i){
         pthread_mutex_lock(&mutex);
 
         // Si no hay ningún elemento en el buffer y no se han leído todos los elementos, espera usando la variable de condición
-        while(numElementos == 0 && !finalizado) {
+        while(numElementos == 0 && !(nAsteriscos == P)) {
             pthread_cond_wait(&condc, &mutex);
         }
 
         // Si finalizado está activo y no hay más elementos, salir
-        if(finalizado && numElementos == 0) {
+        if((nAsteriscos == P) && numElementos == 0) {
             pthread_mutex_unlock(&mutex);
             break;
         }
@@ -85,7 +84,6 @@ void* consumidor(void* i){
             nAsteriscos++;
 
             if(nAsteriscos == P) {
-                finalizado = 1;
                 pthread_cond_broadcast(&condc);
             }
             pthread_mutex_unlock(&nAsterisco);
@@ -194,6 +192,7 @@ int main(int argc, char *argv[]){
     // Creación del mutex y variables de condición
     pthread_mutex_init(&mutex, 0);
     pthread_mutex_init(&scanner, 0);
+    pthread_mutex_init(&nAsterisco, 0);
     pthread_mutex_init(&nAsterisco, 0);
     
     // Creación de la barrera
