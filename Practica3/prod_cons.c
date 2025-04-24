@@ -11,8 +11,9 @@ char *buffer;
 int inicio = 0, final = 0, numElementos = 0; // LLena si ambas variables coinciden (final apunta al último elemento)
 int nAsteriscos = 0;
 int P, C, N; 
+int finalizado = 0;
 
-pthread_mutex_t mutex, scanner;
+pthread_mutex_t mutex, scanner, nAsterisco;
 pthread_cond_t condc, condp;
 pthread_barrier_t barrier;
 
@@ -56,10 +57,17 @@ void* consumidor(void* i){
     printf("BARRERA CONSUMIDOR\n");
 
     char elemento;
-    while(nAsteriscos != P){
+    while(1){
         pthread_mutex_lock(&mutex);
-        while(numElementos == 0){
+
+        while(numElementos == 0 && !finalizado) {
             pthread_cond_wait(&condc, &mutex);
+        }
+
+        // Si finalizado está activo y no hay más elementos, salir
+        if(finalizado && numElementos == 0) {
+            pthread_mutex_unlock(&mutex);
+            break;
         }
         
         elemento = eliminarElemento(T);
@@ -70,8 +78,16 @@ void* consumidor(void* i){
 
         // Escribir el elemento en el archivo
         fputc(elemento, salida);
+
         if(elemento == '*') {
+            pthread_mutex_lock(&nAsterisco);
             nAsteriscos++;
+
+            if(nAsteriscos == P) {
+                finalizado = 1;
+                pthread_cond_broadcast(&condc);
+            }
+            pthread_mutex_unlock(&nAsterisco);
         }
     }
 
@@ -201,6 +217,7 @@ int main(int argc, char *argv[]){
     pthread_barrier_destroy(&barrier);
     pthread_mutex_destroy(&mutex);
     pthread_mutex_destroy(&scanner);
+    pthread_mutex_destroy(&nAsterisco);
     pthread_cond_destroy(&condp);
     pthread_cond_destroy(&condc);
     free(buffer);
