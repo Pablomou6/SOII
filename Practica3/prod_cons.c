@@ -11,7 +11,6 @@ char *buffer;
 int inicio = 0, final = 0, numElementos = 0; // LLena si ambas variables coinciden (final apunta al último elemento)
 int nAsteriscos = 0;
 int P, C, N; 
-int finalizado = 0;
 
 pthread_mutex_t mutex, scanner, nAsterisco;
 pthread_cond_t condc, condp;
@@ -60,12 +59,12 @@ void* consumidor(void* i){
     while(1){
         pthread_mutex_lock(&mutex);
 
-        while(numElementos == 0 && !finalizado) {
+        while(numElementos == 0 && !(nAsteriscos == P)) {
             pthread_cond_wait(&condc, &mutex);
         }
 
         // Si finalizado está activo y no hay más elementos, salir
-        if(finalizado && numElementos == 0) {
+        if((nAsteriscos == P) && numElementos == 0) {
             pthread_mutex_unlock(&mutex);
             break;
         }
@@ -84,11 +83,11 @@ void* consumidor(void* i){
             nAsteriscos++;
 
             if(nAsteriscos == P) {
-                finalizado = 1;
                 pthread_cond_broadcast(&condc);
             }
             pthread_mutex_unlock(&nAsterisco);
         }
+        sleep(rand() % T);
     }
 
     fclose(salida);
@@ -143,6 +142,7 @@ void* productor(void* i){
 
             pthread_mutex_unlock(&mutex);
             printf("(Prod %d) Inserta el elemento %c\n", id, elemento);
+            sleep(rand() % T);
         }
     }
 
@@ -185,6 +185,7 @@ int main(int argc, char *argv[]){
     // Creación del mutex y variables de condición
     pthread_mutex_init(&mutex, 0);
     pthread_mutex_init(&scanner, 0);
+    pthread_mutex_init(&nAsterisco, 0);
     
     // Creación de la barrera
     if(pthread_barrier_init(&barrier, NULL, P+C) != 0){
