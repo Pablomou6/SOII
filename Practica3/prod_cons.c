@@ -18,59 +18,70 @@ pthread_barrier_t barrier;
 
 
 void insertarElemento(char elemento, int T) {
-    //sleep(rand() % T);
-
+    // Insertamos el elemento en el buffer por el final
     buffer[final] = elemento;
+    // Recalculamos el índice del final
     final = (final + 1) % N;
+    // Aumentamos el contador de elementos
     numElementos += 1;
 }
 
 char eliminarElemento(int T){
-    //sleep(rand() % T);
-
+    // Recuperamos el elemento del buffer por el inicio
     char elemento = buffer[inicio];
+    // Recalculamos el índice del inicio
     inicio = (inicio + 1) % N;
+    // Disminuimos el contador de elementos
     numElementos -= 1;
-    
+    // Devolvemos el elemento recuperado
     return elemento;
 }
 
+// Función que se asocia a los hilos consumidores
 void* consumidor(void* i){
     int T;
     int id = *(int *)i;
     char nombre[50];
     sprintf(nombre, "salida%d.txt", id);    // Guarda en nombre el string formateado
 
+    // Abrimos el archivo de salida
     FILE* salida = fopen(nombre, "w");
     if(salida == NULL){
         printf("Error al crear el archivo de salida %s\n", nombre);
         pthread_exit(NULL);
     }
 
+    // Solicitamos el retardo al consumidor
     pthread_mutex_lock(&scanner);
     printf("(Cons %d) Introduce el retardo T entre cada iteración: ", id);
     scanf("%d", &T);
     pthread_mutex_unlock(&scanner);
 
+    // Esperamos a todos los hilos con la barrera
     pthread_barrier_wait(&barrier);
     printf("BARRERA CONSUMIDOR\n");
 
     char elemento;
     while(1){
+        // Bloqueamos el mutex para acceder a las variables compartidas
         pthread_mutex_lock(&mutex);
 
+        // Verificamos si no hay elementos en el buffer y si no hemos terminado. En esto caso, espera el consumidor
         while(numElementos == 0 && !(nAsteriscos == P)) {
             pthread_cond_wait(&condc, &mutex);
         }
 
-        // Si finalizado está activo y no hay más elementos, salir
+        // Volvemos a comprobar ya que, si algún consumidor se queda bloqueado en el bloque superior, ejecutaría de nuevo el resto del código
         if((nAsteriscos == P) && numElementos == 0) {
+            // En caso de terminar la ejecución, se desbloquea el mutex y se sale del bucle
             pthread_mutex_unlock(&mutex);
             break;
         }
         
+        // Si hay elementos en el buffer, eliminamos uno
         elemento = eliminarElemento(T);
 
+        // Desbloqueamos el mutex y notificamos al productor
         pthread_cond_signal(&condp);
         pthread_mutex_unlock(&mutex);
         printf("(Cons %d) Elimina el elemento %c\n", id, elemento);
@@ -78,18 +89,24 @@ void* consumidor(void* i){
         // Escribir el elemento en el archivo
         fputc(elemento, salida);
 
+        // Si el elemento a insertar en el archivo es un asterisco
         if(elemento == '*') {
+            // Bloqueamos el mutex para acceder a la variable nAsteriscos
             pthread_mutex_lock(&nAsterisco);
+            // Aumentamos el contador de asteriscos
             nAsteriscos++;
 
+            // Si hemos recibido todos los asteriscos, notificamos a los consumidores
             if(nAsteriscos == P) {
                 pthread_cond_broadcast(&condc);
             }
+            // Desbloqueamos el mutex
             pthread_mutex_unlock(&nAsterisco);
         }
+        // Esperamos un tiempo aleatorio entre 0 y T para simular el retardo
         sleep(rand() % T);
     }
-
+    // Cerramos el archivo de salida y termina el hilo
     fclose(salida);
     pthread_exit(0);
 }
@@ -106,58 +123,71 @@ void* productor(void* i){
     int id = *(int*)i, T;
     char archivo[20], elemento;
 
+    // Solicitamos el nombre del archivo para leer
     pthread_mutex_lock(&scanner);
     printf("(Prod %d): Introduce el nombre del archivo del que se leerá el texto: ", id);
     scanf(" %[^\n\r]", archivo);
     printf("\n");
     pthread_mutex_unlock(&scanner);
 
+    // Intentamos abrir el archivo
     FILE* doc = fopen(archivo, "r");
     if(doc == NULL) {
         printf("Error al abrir el archivo %s\n", archivo);
         pthread_exit(NULL);
     }
 
+    // Solicitamos el retardo para el productor
     pthread_mutex_lock(&scanner);
     printf("(Prod %d): Introduce el retardo máximo deseado para las esperas: ", id);
     scanf(" %d", &T);
     printf("\n");
     pthread_mutex_unlock(&scanner);
 
-    // Espera usando la barrera
+    // Esperamos al resto de hilos usando la barrera
     pthread_barrier_wait(&barrier);
     printf("BARRERA PRODUCTOR\n");
     
+    // Mientras no se alcanza el final del archivo, leemos el siguiente elemento
     while((elemento = fgetc(doc)) != EOF){
+        // Comprobamos si el elemento es alfanumérico. En caso de no serlo, se ignora
         if(esAlfanumerico(elemento)) {
+            // Bloqueamos el mutex para acceder a las variables compartidas
             pthread_mutex_lock(&mutex);
 
-            while(numElementos != 0) {
+            // Comprobamos si el buffer está lleno. En caso de estarlo, espera el productor
+            while(numElementos == N) {
                 pthread_cond_wait(&condp, &mutex);
             }
 
+            // Si el buffer tiene hueco, se inserta el elemento
             insertarElemento(elemento, T);
-            
-            pthread_cond_signal(&condc);
 
+            // Desbloqueamos el mutex y notificamos al consumidor
+            pthread_cond_signal(&condc);
             pthread_mutex_unlock(&mutex);
+
             printf("(Prod %d) Inserta el elemento %c\n", id, elemento);
             sleep(rand() % T);
         }
     }
 
+    // Al terminar la lectura del archivo, se bloquea el mutex
     pthread_mutex_lock(&mutex);
 
-    while(numElementos != 0) {
+    // Se comprueba si el buffer está lleno. En caso de estarlo, espera el productor
+    while(numElementos == N) {
         pthread_cond_wait(&condp, &mutex);
     }
 
+    // Si el buffer tiene hueco, se inserta un asterisco
     insertarElemento('*', T);
     
+    // Desbloqueamos el mutex y notificamos al consumidor
     pthread_cond_signal(&condc);
-
     pthread_mutex_unlock(&mutex);
 
+    // Cerramos el archivo y terminamos el hilo
     fclose(doc);
     pthread_exit(0);
 }
@@ -215,6 +245,7 @@ int main(int argc, char *argv[]){
         printf("Termina el consumidor %d\n", i);
     }
 
+    // Liberamos los mutex creados y el buffer compartido
     pthread_barrier_destroy(&barrier);
     pthread_mutex_destroy(&mutex);
     pthread_mutex_destroy(&scanner);
