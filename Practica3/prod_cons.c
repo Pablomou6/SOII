@@ -48,12 +48,14 @@ void* consumidor(void* i){
     FILE* salida = fopen(nombre, "w");
     if(salida == NULL){
         printf("Error al crear el archivo de salida %s\n", nombre);
+        // Si se produce error, permite que la barrera continúe
+        pthread_barrier_wait(&barrier);
         pthread_exit(NULL);
     }
 
     // Solicitamos el retardo al consumidor
     pthread_mutex_lock(&scanner);
-    printf("(Cons %d) Introduce el retardo T entre cada iteración: ", id);
+    printf("(Cons %d) Introduce el retardo máximo entre cada iteración: ", id);
     scanf("%d", &T);
     pthread_mutex_unlock(&scanner);
 
@@ -134,6 +136,14 @@ void* productor(void* i){
     FILE* doc = fopen(archivo, "r");
     if(doc == NULL) {
         printf("Error al abrir el archivo %s\n", archivo);
+        // Para el recuento de asteriscos, es necesario notificar que este ya ha finalizado
+        pthread_mutex_lock(&nAsterisco);
+        nAsteriscos++;
+        pthread_mutex_unlock(&nAsterisco);
+
+        // También permite que continúe la barrera
+        pthread_barrier_wait(&barrier);
+
         pthread_exit(NULL);
     }
 
@@ -212,12 +222,12 @@ int main(int argc, char *argv[]){
     buffer = (char *)malloc(N*sizeof(char));
     
     // Variables para almacenar los identificadores de los hilos
-    pthread_t productores[P], consumidores[C], indicesProd[P], indicesCons[C];
+    pthread_t productores[P], consumidores[C];
+    int indicesProd[P], indicesCons[C];
 
     // Creación del mutex y variables de condición
     pthread_mutex_init(&mutex, 0);
     pthread_mutex_init(&scanner, 0);
-    pthread_mutex_init(&nAsterisco, 0);
     pthread_mutex_init(&nAsterisco, 0);
     
     // Creación de la barrera
