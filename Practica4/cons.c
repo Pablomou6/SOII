@@ -11,6 +11,7 @@ mqd_t almacen1; //Buffer para entrada del consumidor
 mqd_t almacen2; //Buffer para entrada del productor
 FILE* doc; //Archivo de salida
 int T; //Tiempo de espera
+char* file_name;
 
 //Funcion que recibe el mensaje del productor
 void recibirMensaje(char* elemento) {
@@ -28,13 +29,15 @@ void consumidor() {
     char elemento;
 
     //Abrimos el archivo de salida
-    if(fopen(doc, "w") == NULL) {
-        printf("Error al abrir el archivo %s\n", doc);
+    doc = fopen(file_name, "w");
+    if(doc == NULL) {
+        printf("Error al abrir el archivo %s\n", file_name);
         exit(EXIT_FAILURE);
     }
     
     //Mandamos el mensaje al productor para que sepa que puede enviar
-    mq_send(almacen2, ' ', sizeof(char), NULL);
+    char espacio = ' ';
+    mq_send(almacen2, &espacio, sizeof(char), 0);
 
     while(1) {
         //Llamamos a la funcion que recibe el mensaje
@@ -56,7 +59,7 @@ void consumidor() {
 
     //Cerramos el archivo de salida
     if(fclose(doc) == EOF) {
-        printf("Error al cerrar el archivo %s\n", doc);
+        printf("Error al cerrar el archivo %s\n", file_name);
         exit(EXIT_FAILURE);
     }
 }
@@ -69,8 +72,8 @@ int main(int argc, char* argv[]) {
     }
 
     //Almacenamos los argumentos en variables
-    FILE* doc = argv[1];
-    int T = atoi(argv[2]);
+    file_name = argv[1];
+    T = atoi(argv[2]);
 
     //Abrimos los buffers, ya que se encarga el productor de crearlos
     almacen1 = mq_open("/ALMACEN1", O_RDONLY);
