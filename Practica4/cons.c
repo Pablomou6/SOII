@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <mqueue.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 //Definimos el tamño del buffer
 #define N 5 
@@ -15,9 +17,9 @@ char* file_name;
 
 //Funcion que recibe el mensaje del productor
 void recibirMensaje(char* elemento) {
-    //recibimos el mnensaje del productor, que por defecto es el más antiguo y prioritario
-    if(mq_receive(almacen1, elemento, sizeof(char), NULL)) {
-        printf("Error al recibir el mensaje\n");
+    //recibimos el mensaje del productor, que por defecto es el más antiguo y prioritario
+    if(mq_receive(almacen1, elemento, sizeof(char), 0) == -1) {
+        printf("Error al recibir el mensaje: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 }
@@ -37,7 +39,11 @@ void consumidor() {
     
     //Mandamos el mensaje al productor para que sepa que puede enviar
     char espacio = ' ';
-    mq_send(almacen2, &espacio, sizeof(char), 0);
+    printf("Voy a enviar el mensaje de inicio al productor\n");
+    for(int i = 0; i < N; i++) {
+        mq_send(almacen2, &espacio, sizeof(char), 0);
+        printf("Mensaje de inicio enviado al productor\n");
+    }
 
     while(1) {
         //Llamamos a la funcion que recibe el mensaje
@@ -46,6 +52,7 @@ void consumidor() {
 
         //Escribimos el mensaje en el archivo de salida
         fprintf(doc, "%c\n", elemento);
+        printf("Escrito en el archivo de salida\n");
 
         //Comprobamos que el mensaje recibidos es * o no
         if(elemento == '*') {
@@ -53,8 +60,11 @@ void consumidor() {
             break;
         }
 
+        mq_send(almacen2, &espacio, sizeof(char), 0);
+        printf("Mensaje de recepción enviado al productor\n");
+
         //Esperamos los milisegundos T
-        usleep(T);
+        //usleep(T);
     }
 
     //Cerramos el archivo de salida
@@ -76,13 +86,13 @@ int main(int argc, char* argv[]) {
     T = atoi(argv[2]);
 
     //Abrimos los buffers, ya que se encarga el productor de crearlos
-    almacen1 = mq_open("/ALMACEN1", O_RDONLY);
+    almacen1 = mq_open("/ALMACEN1", O_CREAT|O_RDONLY);
     if(almacen1 == -1) {
-        printf("Error al abrir el buzón de entrada del produtor\n");
+        printf("Error al abrir el buzón de entrada del productor: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    almacen2 = mq_open("/ALMACEN2", O_WRONLY);
+    almacen2 = mq_open("/ALMACEN2", O_CREAT|O_WRONLY);
     if(almacen2 == -1) {
         printf("Error al abrir el buzón de salida del consumidor\n");
         exit(EXIT_FAILURE);
