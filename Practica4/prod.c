@@ -20,20 +20,31 @@ void productor(){
         exit(EXIT_FAILURE);
     }
     // Se espera a que el consumidor confirme que está listo
-    char aviso='';
-    while(aviso==''){
+    char aviso;
+    while(aviso !=' '){
         mq_receive(almacen2, &aviso, sizeof(char), NULL);
     }
-    aviso='';
 
-    char item= getc(fp);
-    while((item= getc(fp)) != EOF)){
+    char item= '0';
+    while(item!= '*'){
         //sleep(rand()%(T));
+
+        //Lectura del fichero de entrada
+        item= getc(fp);
+        if(item == EOF) item= '*';
+        if (item == '*') item= '\0';
+
+        // Se comprueba que el item devuelto sea un caracter alfanumérico o un asterico de finalización
+        if((item>=48 && item<=57) || (item>=65 && item<=90) || (item>=97 && item<=122) || item=='*'){
+            mq_send(almecen1, item, sizeof(char), NULL);
+            mq_receive(almacen2, &aviso, sizeof(char), NULL);
+        }
         
-        mq_send(almecen1, item, sizeof(char), NULL);
-
+        //if(aviso=='f'){
+        //    mq_send(almacen1, 'y', siezeof(char), NULL);
+        //}
     }
-
+    fclose(fp);
 }
 
 int main(int argc, char** argv){
@@ -62,7 +73,7 @@ int main(int argc, char** argv){
     struct mq_attr attr;
     attr.mq_maxmsg= MAX_BUFFER;
     attr.mq_msgsize= sizeof(char);
-
+    
     // Borrado de los buffers de entrada por si existían de una ejecución previa
     mq_unlink("/ALMACEN1");
     mq_unlink("/ALMACEN2");
