@@ -31,7 +31,7 @@ void productor(){
 
     char item= '0';
     while(item!= '*'){
-        //sleep(rand()%(T));
+        usleep(rand()%(T));
 
         //Lectura del fichero de entrada
         item= getc(fp);
@@ -41,18 +41,14 @@ void productor(){
         // Se comprueba que el item devuelto sea un caracter alfanumérico o un asterico de finalización
         if((item>=48 && item<=57) || (item>=65 && item<=90) || (item>=97 && item<=122) || item=='*'){
             mq_getattr(almacen1, &attr);
-            printf("Num mensajes: %ld\n", attr.mq_curmsgs);
 
-            printf("Item producido: %c\n", item);
+            printf("Item producido: %c  |  Prioridad: %ld\n", item, attr.mq_curmsgs);
+            
             // Cola FIFO, se insertan con prioridad 0, la prioridad más baja.
             // Al tener todos los items, la misma prioridad, se rebirán de más antigua a más reciente.
-            mq_send(almacen1, &item, sizeof(char), 0);
+            mq_send(almacen1, &item, sizeof(char), attr.mq_curmsgs);
             mq_receive(almacen2, &aviso, sizeof(char), 0);
         }
-        
-        //if(aviso=='f'){
-        //    mq_send(almacen1, 'y', siezeof(char), NULL);
-        //}
     }
     fclose(fp);
 }
