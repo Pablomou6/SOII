@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mqueue.h>
+#include <unistd.h>
 
 //Definimos el tamño del buffer
 #define N 5 
@@ -10,6 +11,15 @@ mqd_t almacen1; //Buffer para entrada del consumidor
 mqd_t almacen2; //Buffer para entrada del productor
 FILE* doc; //Archivo de salida
 int T; //Tiempo de espera
+
+//Funcion que recibe el mensaje del productor
+void recibirMensaje(char* elemento) {
+    //recibimos el mnensaje del productor, que por defecto es el más antiguo y prioritario
+    if(mq_receive(almacen1, elemento, sizeof(char), NULL)) {
+        printf("Error al recibir el mensaje\n");
+        exit(EXIT_FAILURE);
+    }
+}
 
 //Con send podes setter a priorida ddos mensajes, esa forma, si simepre es null
 //y establecemos en receive que reciba el más antiguo, el primero que se envió, lo recibe
@@ -23,15 +33,32 @@ void consumidor() {
         exit(EXIT_FAILURE);
     }
     
+    //Mandamos el mensaje al productor para que sepa que puede enviar
+    mq_send(almacen2, ' ', sizeof(char), NULL);
+
     while(1) {
-        //Mandamos el mensaje al productor para que sepa que puede enviar
-        mq_send(almacen2, ' ', sizeof(char), NULL);
+        //Llamamos a la funcion que recibe el mensaje
+        recibirMensaje(&elemento);
+        printf("Recibido: %c\n", elemento);
 
-        //Recibimos el mensaje del productor, que por defecto es el más antiguo y prioritario
-        mq_receive(almacen1, &elemento, sizeof(char), NULL);
+        //Escribimos el mensaje en el archivo de salida
+        fprintf(doc, "%c\n", elemento);
+
+        //Comprobamos que el mensaje recibidos es * o no
+        if(elemento == '*') {
+            printf("Fin de la ejecución\n");
+            break;
+        }
+
+        //Esperamos los milisegundos T
+        usleep(T);
     }
-    
 
+    //Cerramos el archivo de salida
+    if(fclose(doc) == EOF) {
+        printf("Error al cerrar el archivo %s\n", doc);
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -60,6 +87,5 @@ int main(int argc, char* argv[]) {
 
     //Llamamos a la función que hará el trabajo del consumidor
     consumidor();
-
 
 }
