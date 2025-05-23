@@ -45,7 +45,13 @@ void consumidor() {
         printf("Mensaje de inicio enviado al productor\n");
     }
 
+    //Esperamos a que el productor se llene
+    sleep(2);
+
     while(1) {
+        //Esperamos los milisegundos T
+        usleep(rand()%(T));
+
         //Llamamos a la funcion que recibe el mensaje
         recibirMensaje(&elemento);
         printf("Recibido: %c\n", elemento);
@@ -62,9 +68,6 @@ void consumidor() {
 
         mq_send(almacen2, &espacio, sizeof(char), 0);
         printf("Mensaje de recepción enviado al productor\n");
-
-        //Esperamos los milisegundos T
-        //usleep(T);
     }
 
     //Cerramos el archivo de salida
